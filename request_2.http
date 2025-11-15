@@ -1,0 +1,41 @@
+@host = example.org
+@port = 443
+@path = /api/v1
+@token = "abc123xyz"
+@userId = 123
+
+# @name Teste
+### @name This will be ignored
+GET https://httpbin.org/get
+
+### Get all users
+GET https://{{host}}:{{port}}{{path}}/users
+
+### Get a specific user
+GET https://{{host}}:{{port}}{{path}}/users/{{userId}}
+Authorization: Bearer {{token}}
+
+### Create a new user
+POST https://{{host}}:{{port}}{{path}}/users
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "active": true
+}
+
+### Update a user
+PUT https://{{host}}:{{port}}{{path}}/users/{{userId}}
+Content-Type: application/json
+Authorization: Bearer {{token}}
+
+{
+  "name": "Jane Doe",
+  "email": "jane@example.com"
+}
+
+### Delete a user
+DELETE https://{{host}}:{{port}}{{path}}/users/{{userId}}
+Authorization: Bearer {{token}}
