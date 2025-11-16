@@ -14,7 +14,18 @@ The C++ 23 standard is chosen for exploration purposes.
 The bare bones structure: initial parser, TUI-like features and variable substituition was coded 
 with the help of a code generator, using the GLM 4.5 model.
 
-Build it using:
+(NEW) Building:
+
+```bash
+mkdir build
+cd build
+cmake ..
+make
+./agatetepe request_file.http
+    
+```
+
+(OLD) Build it using:
 
 Linux:
 
