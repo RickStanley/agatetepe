@@ -1,3 +1,4 @@
+#include "MmapReader.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -7,7 +8,6 @@
 #include <ctime>
 #include <curl/curl.h>
 #include <curl/easy.h>
-#include <fstream>
 #include <iomanip>
 #include <map>
 #include <memory>
@@ -287,9 +287,9 @@ struct HttpResponse {
 // HTTP Request structure
 class HttpRequest {
 public:
-  std::string name;
   std::string method;
   std::string url;
+  std::string name;
   std::map<std::string, std::string> headers;
   std::string body;
 
@@ -461,7 +461,8 @@ public:
       return;
     }
 
-    if (showDetails && selected >= 0 && selected < requests.size()) {
+    if (showDetails && selected >= 0 &&
+        selected < static_cast<int>(requests.size())) {
       auto request = requests[selected];
       std::println("Name: {}", request->name);
       std::println("Method: {}", request->method);
@@ -481,7 +482,7 @@ public:
       std::println("\nPress 'd' to toggle details, arrow keys to navigate, "
                    "Enter to select, q to quit.");
     } else {
-      for (int i = 0; i < requests.size(); i++) {
+      for (int i = 0; i < static_cast<int>(requests.size()); i++) {
         if (i == selected) {
           std::print("> ");
         } else {
@@ -507,7 +508,7 @@ public:
   }
 
   void moveDown() {
-    if (selected < requests.size() - 1) {
+    if (selected < static_cast<int>(requests.size()) - 1) {
       selected++;
     }
   }
@@ -515,7 +516,7 @@ public:
   void toggleDetails() { showDetails = !showDetails; }
 
   std::shared_ptr<HttpRequest> getSelected() {
-    if (selected >= 0 && selected < requests.size()) {
+    if (selected >= 0 && selected < static_cast<int>(requests.size())) {
       return requests[selected];
     }
     return nullptr;
@@ -602,19 +603,26 @@ private:
       pos = start + replacement.length();
     }
 
-    return std::move(result);
+    return result;
   }
 
 public:
   static std::vector<std::shared_ptr<HttpRequest>>
   parseFile(const std::string_view filename) {
     std::vector<std::shared_ptr<HttpRequest>> requests;
-    std::ifstream file((std::string(filename)));
+    auto reader = create_mmap_reader((std::string(filename)));
 
-    if (!file.is_open()) {
+    if (!reader->is_open()) {
       std::println(stderr, "Error: Could not open file {}", filename);
       return requests;
     }
+
+    // std::ifstream file((std::string(filename)));
+
+    // if (!file.is_open()) {
+    //   std::println(stderr, "Error: Could not open file {}", filename);
+    //   return requests;
+    // }
 
     // Clear variables for a fresh parse
     variables.clear();
@@ -626,7 +634,8 @@ public:
     std::string name;
     std::string body;
 
-    while (std::getline(file, line)) {
+    // while (std::getline(file, line)) {
+    for (std::string_view line : *reader) {
       if (line.starts_with("# @name")) {
         constexpr auto nameSize = stringLength("# @name");
         name = std::string_view(line).substr(nameSize + 1);
@@ -685,19 +694,15 @@ public:
       else if (inHeaders && currentRequest) {
         size_t colonPos = line.find(':');
         if (colonPos != std::string::npos) {
-          std::string key = line.substr(0, colonPos);
-          std::string value = line.substr(colonPos + 1);
+          std::string_view key = line.substr(0, colonPos);
+          std::string_view value = line.substr(colonPos + 1);
 
-          // Trim whitespace
-          key.erase(0, key.find_first_not_of(" \t"));
-          key.erase(key.find_last_not_of(" \t") + 1);
-          value.erase(0, value.find_first_not_of(" \t"));
-          value.erase(value.find_last_not_of(" \t") + 1);
-
+          std::string_view trimmedKey = trimWhitespace(key);
+          std::string_view trimmedValue = trimWhitespace(value);
           // Substitute variables in header values
-          value = substituteVariables(value);
+          std::string transformedValue = substituteVariables(trimmedValue);
 
-          currentRequest->addHeader(key, value);
+          currentRequest->addHeader(std::string(trimmedKey), transformedValue);
         }
       }
       // Parse body
