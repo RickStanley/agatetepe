@@ -17,10 +17,10 @@ else ()
 endif ()
 
 if(WIN32)
-  target_sources(agatetepe PRIVATE MmapReader.win32.cc)
+  target_sources(agatetepe PRIVATE MmapReader.win32.cc TerminalInput.win32.cc)
 else()
-  target_sources(agatetepe PRIVATE MmapReader.unix.cc)
+  target_sources(agatetepe PRIVATE MmapReader.unix.cc TerminalInput.unix.cc)
 endif()
 
 target_link_libraries(agatetepe PRIVATE CURL::libcurl)
-target_sources(agatetepe PRIVATE MmapReader.hpp)
+target_sources(agatetepe PRIVATE MmapReader.hpp TerminalInput.hpp)
