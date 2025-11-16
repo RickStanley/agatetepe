@@ -1,3 +1,5 @@
+// TODO(stanley): normalize to use snake_case everywhere
+// TODO(stanley): use free functions instead of classes
 #include "MmapReader.hpp"
 #include "TerminalInput.hpp"
 #include <algorithm>
