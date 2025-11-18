@@ -17,6 +17,7 @@
 #include <optional>
 #include <print>
 #include <random>
+#include <ranges>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -311,6 +312,7 @@ public:
 class RequestAdapter {
 public:
   virtual ~RequestAdapter() = default;
+  // TODO(stanley): std::expected may be more appropriate (aligns with rust's result)
   virtual std::variant<HttpResponse, std::string>
   doRequest(const HttpRequest &request) = 0;
 };
@@ -533,112 +535,28 @@ public:
   size_t size() const { return requests.size(); }
 };
 
+template <typename R>
+concept ConvertibleToStringViewRange =
+    std::ranges::range<R> &&
+    std::convertible_to<std::ranges::range_reference_t<R>, std::string_view>;
+
 // HTTP Request Parser with variable support
 class HttpRequestParser {
-private:
-  static std::map<std::string, std::string> variables;
-
-  static std::string_view trimWhitespace(const std::string_view string) {
-    size_t start = string.find_first_not_of(" \t");
-    if (start == std::string_view::npos) {
-      return std::string_view(); // Empty string
-    }
-
-    size_t end = string.find_last_not_of(" \t");
-    return string.substr(start, end - start + 1);
-  }
-
-  // Parse a variable declaration line
-  static void parseVariable(const std::string_view line) {
-    // Remove leading @
-    std::string_view varLine = line.substr(1);
-
-    // Find the equal sign
-    size_t equalPos = varLine.find('=');
-    if (equalPos == std::string::npos) {
-      return; // Invalid variable declaration
-    }
-
-    // Extract variable name and value
-    std::string_view varName = trimWhitespace(varLine.substr(0, equalPos));
-    std::string_view varValue = trimWhitespace(varLine.substr(equalPos + 1));
-
-    // Handle quoted strings
-    if (varValue.front() == '"' && varValue.back() == '"') {
-      varValue = varValue.substr(1, varValue.length() - 2);
-    }
-
-    // Store the variable
-    variables[std::string(varName)] = std::string(varValue);
-  }
-
-  // Substitute variables in a string without using regex
-  static std::string substituteVariables(const std::string_view input) {
-    std::string result = std::string(input);
-    size_t pos = 0;
-
-    while (pos < result.length()) {
-      // Look for the start of a variable
-      size_t start = result.find("{{", pos);
-      if (start == std::string::npos) {
-        break; // No more variables
-      }
-
-      // Look for the end of the variable
-      size_t end = result.find("}}", start);
-      if (end == std::string::npos) {
-        break; // Malformed variable, stop processing
-      }
-
-      // Extract variable name
-      std::string varName = result.substr(start + 2, end - start - 2);
-
-      // Find the replacement value
-      std::string replacement = varName.starts_with("$")
-                                    ? DynamicVariableResolver::resolve(varName)
-                                : variables.count(varName) ? variables[varName]
-                                                           : "";
-
-      // Replace the variable with its value
-      result.replace(start, end - start + 2, replacement);
-
-      // Update position to continue after the replacement
-      pos = start + replacement.length();
-    }
-
-    return result;
-  }
-
 public:
   static std::vector<std::shared_ptr<HttpRequest>>
-  parseFile(const std::string_view filename) {
+  parseContents(ConvertibleToStringViewRange auto &&range) {
     std::vector<std::shared_ptr<HttpRequest>> requests;
-    auto reader = create_mmap_reader((std::string(filename)));
-
-    if (!reader->is_open()) {
-      std::println(stderr, "Error: Could not open file {}", filename);
-      return requests;
-    }
-
-    // std::ifstream file((std::string(filename)));
-
-    // if (!file.is_open()) {
-    //   std::println(stderr, "Error: Could not open file {}", filename);
-    //   return requests;
-    // }
 
     // Clear variables for a fresh parse
     variables.clear();
 
-    std::string line;
     std::shared_ptr<HttpRequest> currentRequest = nullptr;
     bool inHeaders = false;
     bool inBody = false;
     std::string name;
     std::string body;
 
-    // while (std::getline(file, line)) {
-    for (std::string_view line : *reader) {
+    for (std::string_view line : range) {
       if (line.starts_with("# @name")) {
         constexpr auto nameSize = stringLength("# @name");
         name = std::string_view(line).substr(nameSize + 1);
@@ -729,6 +647,99 @@ public:
 
     return requests;
   }
+
+  static std::vector<std::shared_ptr<HttpRequest>>
+  parseFile(const std::string_view filename) {
+    auto reader = create_mmap_reader((std::string(filename)));
+
+    if (!reader->is_open()) {
+      std::println(stderr, "Error: Could not open file {}", filename);
+      return std::vector<std::shared_ptr<HttpRequest>>{};
+    }
+
+    return parseContents(*reader);
+  }
+
+  static std::vector<std::shared_ptr<HttpRequest>>
+  parseString(const std::string_view string_content) {
+    return parseContents(
+        string_content | std::views::split('\n') |
+        std::views::transform([](auto r) { return std::string_view(r); }));
+  }
+
+private:
+  static std::map<std::string, std::string> variables;
+
+  static std::string_view trimWhitespace(const std::string_view string) {
+    size_t start = string.find_first_not_of(" \t");
+    if (start == std::string_view::npos) {
+      return std::string_view(); // Empty string
+    }
+
+    size_t end = string.find_last_not_of(" \t");
+    return string.substr(start, end - start + 1);
+  }
+
+  // Parse a variable declaration line
+  static void parseVariable(const std::string_view line) {
+    // Remove leading @
+    std::string_view varLine = line.substr(1);
+
+    // Find the equal sign
+    size_t equalPos = varLine.find('=');
+    if (equalPos == std::string::npos) {
+      return; // Invalid variable declaration
+    }
+
+    // Extract variable name and value
+    std::string_view varName = trimWhitespace(varLine.substr(0, equalPos));
+    std::string_view varValue = trimWhitespace(varLine.substr(equalPos + 1));
+
+    // Handle quoted strings
+    if (varValue.front() == '"' && varValue.back() == '"') {
+      varValue = varValue.substr(1, varValue.length() - 2);
+    }
+
+    // Store the variable
+    variables[std::string(varName)] = std::string(varValue);
+  }
+
+  // Substitute variables in a string without using regex
+  static std::string substituteVariables(const std::string_view input) {
+    std::string result = std::string(input);
+    size_t pos = 0;
+
+    while (pos < result.length()) {
+      // Look for the start of a variable
+      size_t start = result.find("{{", pos);
+      if (start == std::string::npos) {
+        break; // No more variables
+      }
+
+      // Look for the end of the variable
+      size_t end = result.find("}}", start);
+      if (end == std::string::npos) {
+        break; // Malformed variable, stop processing
+      }
+
+      // Extract variable name
+      std::string varName = result.substr(start + 2, end - start - 2);
+
+      // Find the replacement value
+      std::string replacement = varName.starts_with("$")
+                                    ? DynamicVariableResolver::resolve(varName)
+                                : variables.count(varName) ? variables[varName]
+                                                           : "";
+
+      // Replace the variable with its value
+      result.replace(start, end - start + 2, replacement);
+
+      // Update position to continue after the replacement
+      pos = start + replacement.length();
+    }
+
+    return result;
+  }
 };
 
 // Initialize the static member
@@ -743,10 +754,16 @@ private:
 public:
   HttpRequestApp() : adapter(std::make_unique<CurlAdapter>()) {}
 
-  bool loadRequests(const std::string_view filename) {
-    auto requests = HttpRequestParser::parseFile(filename);
+  bool loadRequests(const std::string_view filenameOrContents,
+                    bool shouldEval) {
+
+    auto requests = shouldEval
+                        ? HttpRequestParser::parseString(filenameOrContents)
+                        : HttpRequestParser::parseFile(filenameOrContents);
+
     if (requests.empty()) {
-      std::println(stderr, "No valid requests found in file: {}", filename);
+      std::println(stderr, "No valid requests found in file: {}",
+                   filenameOrContents);
       return false;
     }
 
@@ -847,12 +864,16 @@ public:
 // Main function
 int main(int argc, char *argv[]) {
   if (argc < 2) {
-    std::println(stderr, "Usage: {} <http_request_file>", argv[0]);
+    std::println(stderr, "Usage: {} [--eval] <http_request_file>", argv[0]);
     return 1;
   }
 
+  std::string_view next_arg = argv[1];
+
+  bool shouldEval = next_arg == "-e" || next_arg == "--eval";
+
   HttpRequestApp app;
-  if (!app.loadRequests(argv[1])) {
+  if (!app.loadRequests(argv[shouldEval ? 2 : 1], shouldEval)) {
     return 1;
   }
 
