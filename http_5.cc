@@ -631,7 +631,7 @@ public:
         if (!body.empty()) {
           body += "\n";
         }
-        body += line;
+        body += substituteVariables(line);
       }
     }
 
