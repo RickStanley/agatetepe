@@ -12,6 +12,7 @@
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <iomanip>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
@@ -312,7 +313,8 @@ public:
 class RequestAdapter {
 public:
   virtual ~RequestAdapter() = default;
-  // TODO(stanley): std::expected may be more appropriate (aligns with rust's result)
+  // TODO(stanley): std::expected may be more appropriate (aligns with rust's
+  // result)
   virtual std::variant<HttpResponse, std::string>
   doRequest(const HttpRequest &request) = 0;
 };
@@ -745,25 +747,28 @@ private:
 // Initialize the static member
 std::map<std::string, std::string> HttpRequestParser::variables;
 
+struct LoadRequestOptions {
+  bool shouldEval;
+  bool shouldFeedFromStdin;
+};
+
 // Main application
 class HttpRequestApp {
-private:
-  RequestMenu menu;
-  std::unique_ptr<RequestAdapter> adapter;
-
 public:
   HttpRequestApp() : adapter(std::make_unique<CurlAdapter>()) {}
 
   bool loadRequests(const std::string_view filenameOrContents,
-                    bool shouldEval) {
+                    const LoadRequestOptions &options) {
 
-    auto requests = shouldEval
-                        ? HttpRequestParser::parseString(filenameOrContents)
-                        : HttpRequestParser::parseFile(filenameOrContents);
+    auto requests =
+        options.shouldFeedFromStdin
+            ? HttpRequestParser::parseString(collectStreamLines(std::cin))
+        : options.shouldEval
+            ? HttpRequestParser::parseString(filenameOrContents)
+            : HttpRequestParser::parseFile(filenameOrContents);
 
     if (requests.empty()) {
-      std::println(stderr, "No valid requests found in file: {}",
-                   filenameOrContents);
+      std::println(stderr, "No valid requests found.");
       return false;
     }
 
@@ -859,21 +864,48 @@ public:
     // Clear screen before exiting
     std::print("\033[2J\033[H");
   }
+
+private:
+  RequestMenu menu;
+  std::unique_ptr<RequestAdapter> adapter;
+
+  static std::string collectStreamLines(std::istream &in) {
+    std::string ret;
+    ret.reserve(64 * 1024); // reserve 64 KB to reduce early reallocations
+
+    char buffer[4096];
+    while (in.read(buffer, sizeof(buffer)))
+      ret.append(buffer, sizeof(buffer));
+
+    ret.append(buffer, in.gcount());
+    return ret;
+  }
 };
 
 // Main function
 int main(int argc, char *argv[]) {
-  if (argc < 2) {
+  LoadRequestOptions loadRequestOptions{};
+
+  for (int i = 0; i < argc; ++i) {
+    std::string arg = argv[i];
+    if (arg == "-e" || arg == "--eval") {
+      loadRequestOptions.shouldEval = true;
+      continue;
+    }
+
+    if (arg == "--stdin") {
+      loadRequestOptions.shouldFeedFromStdin = true;
+      continue;
+    }
+  }
+
+  if (!loadRequestOptions.shouldFeedFromStdin && argc < 2) {
     std::println(stderr, "Usage: {} [--eval] <http_request_file>", argv[0]);
     return 1;
   }
 
-  std::string_view next_arg = argv[1];
-
-  bool shouldEval = next_arg == "-e" || next_arg == "--eval";
-
   HttpRequestApp app;
-  if (!app.loadRequests(argv[shouldEval ? 2 : 1], shouldEval)) {
+  if (!app.loadRequests(argv[argc - 1], loadRequestOptions)) {
     return 1;
   }
 
