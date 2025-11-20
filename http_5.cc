@@ -758,8 +758,11 @@ private:
 std::map<std::string, std::string> HttpRequestParser::variables;
 
 struct LoadRequestOptions {
-  bool shouldEval;
-  bool shouldFeedFromStdin;
+  bool shouldEval = false;
+  bool shouldFeedFromStdin = false;
+  bool showHelp = false;
+  std::string evalString;
+  std::string requestFile;
 };
 
 // Main application
@@ -767,15 +770,14 @@ class HttpRequestApp {
 public:
   HttpRequestApp() : adapter(std::make_unique<CurlAdapter>()) {}
 
-  bool loadRequests(const std::string_view filenameOrContents,
-                    const LoadRequestOptions &options) {
+  bool loadRequests(const LoadRequestOptions &options) {
 
     auto requests =
         options.shouldFeedFromStdin
             ? HttpRequestParser::parseString(collectStreamLines(std::cin))
         : options.shouldEval
-            ? HttpRequestParser::parseString(filenameOrContents)
-            : HttpRequestParser::parseFile(filenameOrContents);
+            ? HttpRequestParser::parseString(options.evalString)
+            : HttpRequestParser::parseFile(options.requestFile);
 
     if (requests.empty()) {
       std::println(stderr, "No valid requests found.");
@@ -874,30 +876,116 @@ private:
   }
 };
 
-// Main function
-int main(int argc, char *argv[]) {
-  LoadRequestOptions loadRequestOptions{};
+void print_usage(const std::string_view programName) {
+  std::println("Usage: {} [OPTIONS] <http_request_file>", programName);
+  std::println("       {} --eval <string> [OPTIONS]", programName);
+  std::println("       {} --stdin [OPTIONS]\n", programName);
+  std::println("A simple console application to load and run HTTP requests.\n");
+  std::println("Input Sources (one must be provided):");
+  std::println(
+      "  <http_request_file>  Path to the file containing the HTTP request.");
+  std::println("  --eval <string>      Takes the provided string as the "
+               "request to evaluate.");
+  std::println(
+      "  --stdin              Reads the HTTP request from standard input.\n");
+  std::println("General Options:");
+  std::println(
+      "  -h, --help           Displays this help message and exits.\n");
+  std::println("Examples:");
+  std::println("  # Run a request from a file");
+  std::println("  {} request.txt\n", programName);
+  std::println("  # Evaluate a string directly");
+  std::println("  {} -e \"GET /api/users\"\n", programName);
+  std::println("  # Pipe a request from another command");
+  std::println("  cat request.txt | {} --stdin\n", programName);
+}
 
-  for (int i = 0; i < argc; ++i) {
-    std::string arg = argv[i];
-    if (arg == "-e" || arg == "--eval") {
-      loadRequestOptions.shouldEval = true;
-      continue;
+// using ParseOptionsResult = std::expected<LoadRequestOptions, std::string>;
+using ParseOptionsResult = std::expected<LoadRequestOptions, error>;
+
+ParseOptionsResult parseOptions(int argc, char *argv[]) {
+  LoadRequestOptions options;
+  std::vector<std::string_view> args(argv, argv + argc);
+
+  for (auto it = args.begin() + 1; it != args.end(); ++it) {
+    const std::string_view arg = *it;
+
+    if (arg == "-h" || arg == "--help") {
+      options.showHelp = true;
+      return options;
     }
 
     if (arg == "--stdin") {
-      loadRequestOptions.shouldFeedFromStdin = true;
+      options.shouldFeedFromStdin = true;
       continue;
+    }
+
+    if (arg == "-e" || arg == "--eval") {
+      if (it + 1 == args.end()) {
+        return std::unexpected(
+            error{.code = agatetepe_error::parse_error,
+                  .message = "Error: The " + std::string(arg) +
+                             " option requires a string argument."});
+      }
+      options.shouldEval = true;
+      options.evalString = *(++it);
+      continue;
+    }
+
+    // If the argument doesn't start with '-', it's the positional request file
+    if (!arg.starts_with('-')) {
+      if (!options.requestFile.empty()) {
+        return std::unexpected(
+            error{.code = agatetepe_error::parse_error,
+                  .message = "Error: Multiple request files specified. Only "
+                             "one is allowed."});
+      }
+      options.requestFile = arg;
     }
   }
 
-  if (!loadRequestOptions.shouldFeedFromStdin && argc < 2) {
-    std::println(stderr, "Usage: {} [--eval] <http_request_file>", argv[0]);
+  return options;
+}
+
+// Main function
+int main(int argc, char *argv[]) {
+  auto parseResult = parseOptions(argc, argv);
+
+  if (!parseResult) {
+    std::println(stderr, "{}", parseResult.error().message);
+    return 1;
+  }
+
+  LoadRequestOptions options = std::move(parseResult.value());
+
+  if (options.showHelp) {
+    print_usage(argv[0]);
+    return 0;
+  }
+
+  short input_sources_count = 0;
+  if (!options.requestFile.empty())
+    input_sources_count++;
+  if (options.shouldEval)
+    input_sources_count++;
+  if (options.shouldFeedFromStdin)
+    input_sources_count++;
+
+  if (input_sources_count == 0) {
+    std::println(stderr, "Error: no request source provided.");
+    print_usage(argv[0]);
+    return 1;
+  }
+
+  if (input_sources_count > 1) {
+    std::println(stderr, "Error: Multiple request sources provided. Please use "
+                         "only of: <file>, --eval or --stdin.");
+    print_usage(argv[0]);
     return 1;
   }
 
   HttpRequestApp app;
-  if (!app.loadRequests(argv[argc - 1], loadRequestOptions)) {
+  if (!app.loadRequests(options)) {
     return 1;
   }
 
