@@ -26,9 +26,9 @@ public:
       // throw std::runtime_error("Failed to get file size for: " + filename);
       std::println("Failed to get file size for: {}", filename);
     }
-    file_size = static_cast<size_t>(file_size_large.QuadPart);
+    _file_size = static_cast<size_t>(file_size_large.QuadPart);
 
-    if (file_size > 0) {
+    if (_file_size > 0) {
       // 3. Create a file mapping object
       map_handle =
           CreateFileMapping(file_handle, NULL, PAGE_READONLY, 0, 0, NULL);
@@ -40,9 +40,9 @@ public:
       }
 
       // 4. Map a view of the file into the address space
-      mapped_data = static_cast<char *>(
-          MapViewOfFile(map_handle, FILE_MAP_READ, 0, 0, file_size));
-      if (mapped_data == NULL) {
+      _mapped_data = static_cast<char *>(
+          MapViewOfFile(map_handle, FILE_MAP_READ, 0, 0, _file_size));
+      if (_mapped_data == NULL) {
         CloseHandle(map_handle);
         CloseHandle(file_handle);
         // throw std::runtime_error("Failed to map view of file: " + filename);
@@ -50,12 +50,12 @@ public:
       }
     }
 
-    m_is_open = true;
+    _is_open = true;
   }
 
   ~MmapReaderWin32() override {
-    if (mapped_data != NULL) {
-      UnmapViewOfFile(mapped_data);
+    if (_mapped_data != NULL) {
+      UnmapViewOfFile(_mapped_data);
     }
     if (map_handle != NULL) {
       CloseHandle(map_handle);
@@ -63,7 +63,7 @@ public:
     if (file_handle != INVALID_HANDLE_VALUE) {
       CloseHandle(file_handle);
     }
-    m_is_open = false;
+    _is_open = false;
   }
 
   // Rule of Five
@@ -71,16 +71,16 @@ public:
   MmapReaderWin32 &operator=(const MmapReaderWin32 &) = delete;
   MmapReaderWin32(MmapReaderWin32 &&other) noexcept
       : file_handle(other.file_handle), map_handle(other.map_handle),
-        mapped_data(other.mapped_data), file_size(other.file_size) {
+        _mapped_data(other._mapped_data), _file_size(other._file_size) {
     other.file_handle = INVALID_HANDLE_VALUE;
     other.map_handle = NULL;
-    other.mapped_data = NULL;
-    other.file_size = 0;
+    other._mapped_data = NULL;
+    other._file_size = 0;
   }
   MmapReaderWin32 &operator=(MmapReaderWin32 &&other) noexcept {
     if (this != &other) {
-      if (mapped_data != NULL)
-        UnmapViewOfFile(mapped_data);
+      if (_mapped_data != NULL)
+        UnmapViewOfFile(_mapped_data);
       if (map_handle != NULL)
         CloseHandle(map_handle);
       if (file_handle != INVALID_HANDLE_VALUE)
@@ -88,27 +88,27 @@ public:
 
       file_handle = other.file_handle;
       map_handle = other.map_handle;
-      mapped_data = other.mapped_data;
-      file_size = other.file_size;
+      _mapped_data = other._mapped_data;
+      _file_size = other._file_size;
 
       other.file_handle = INVALID_HANDLE_VALUE;
       other.map_handle = NULL;
-      other.mapped_data = NULL;
-      other.file_size = 0;
+      other._mapped_data = NULL;
+      other._file_size = 0;
     }
     return *this;
   }
 
-  const char *get_data() const override { return mapped_data; }
-  size_t get_size() const override { return file_size; }
-  bool is_open() const override { return m_is_open; };
+  const char *get_data() const override { return _mapped_data; }
+  size_t get_size() const override { return _file_size; }
+  bool is_open() const override { return _is_open; };
 
 private:
-  HANDLE file_handle = INVALID_HANDLE_VALUE;
-  HANDLE map_handle = NULL;
-  char *mapped_data = NULL;
-  size_t file_size = 0;
-  bool m_is_open = false;
+  HANDLE _file_handle = INVALID_HANDLE_VALUE;
+  HANDLE _map_handle = NULL;
+  char *_mapped_data = NULL;
+  size_t _file_size = 0;
+  bool _is_open = false;
 };
 
 // Factory implementation for Windows

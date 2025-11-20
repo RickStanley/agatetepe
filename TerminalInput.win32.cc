@@ -63,7 +63,7 @@ public:
     }
   }
 
-  int getKey() const override {
+  int get_key() const override {
     if (!m_is_interactive) {
       // If not interactive, we can't get keys. Return a quit command
       // to prevent a tight loop.
@@ -113,7 +113,7 @@ public:
     }
 
     // If no key press was processed, loop again (or return 0)
-    return getKey(); // Recursive call to wait for a valid key
+    return get_key(); // Recursive call to wait for a valid key
   }
 
 private:

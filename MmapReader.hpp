@@ -26,19 +26,19 @@ public:
     LineIterator() = default;
 
     LineIterator(const char *ptr, const char *end)
-        : current_pos(ptr), end_pos(end) {}
+        : _current_pos(ptr), _end_pos(end) {}
 
     // dereference operator: returns a string_view of the current line
     reference operator*() const {
-      const char *newline_pos = std::find(current_pos, end_pos, '\n');
-      cached_view = std::string_view(current_pos, newline_pos - current_pos);
-      return cached_view;
+      const char *newline_pos = std::find(_current_pos, _end_pos, '\n');
+      _cached_view = std::string_view(_current_pos, newline_pos - _current_pos);
+      return _cached_view;
     }
 
     // pre-increment operator: moves to the next line
     LineIterator &operator++() {
-      const char *newline_pos = std::find(current_pos, end_pos, '\n');
-      current_pos = (newline_pos == end_pos) ? end_pos : newline_pos + 1;
+      const char *newline_pos = std::find(_current_pos, _end_pos, '\n');
+      _current_pos = (newline_pos == _end_pos) ? _end_pos : newline_pos + 1;
       return *this;
     }
 
@@ -49,17 +49,17 @@ public:
     }
 
     bool operator==(const LineIterator &other) const {
-      return current_pos == other.current_pos;
+      return _current_pos == other._current_pos;
     }
 
     bool operator!=(const LineIterator &other) const {
-      return current_pos != other.current_pos;
+      return _current_pos != other._current_pos;
     }
 
   private:
-    const char *current_pos;
-    const char *end_pos;
-    mutable std::string_view cached_view;
+    const char *_current_pos;
+    const char *_end_pos;
+    mutable std::string_view _cached_view;
   };
 
   LineIterator begin() const {

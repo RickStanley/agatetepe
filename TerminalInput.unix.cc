@@ -49,7 +49,7 @@ public:
     }
   }
 
-  int getKey() const override {
+  int get_key() const override {
     if (!m_is_interactive) {
       // If not interactive, we can't get keys. Return a quit command
       // or simply sleep to prevent a tight loop.

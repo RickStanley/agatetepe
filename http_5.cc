@@ -1,4 +1,3 @@
-// TODO(stanley): normalize to use snake_case everywhere
 // TODO(stanley): use free functions instead of classes
 #include "MmapReader.hpp"
 #include "TerminalInput.hpp"
@@ -31,14 +30,14 @@
 #include <unistd.h>
 #include <vector>
 
-enum class agatetepe_error { unknown, parse_error, curl_error };
+enum class e_agatetepe_error { unknown, parse_error, curl_error };
 
-struct error {
-  agatetepe_error code = agatetepe_error::unknown;
+struct AgatetepeError {
+  e_agatetepe_error code = e_agatetepe_error::unknown;
   std::string message;
 };
 
-static constexpr size_t stringLength(const char *str) {
+static constexpr size_t string_length(const char *str) {
   size_t count = 0;
   while (*str++)
     ++count;
@@ -53,55 +52,55 @@ static constexpr size_t stringLength(const char *str) {
 class DynamicVariableResolver {
 public:
   static std::string resolve(const std::string_view input) {
-    static constexpr auto parenLength = stringLength("(");
+    static constexpr auto paren_length = string_length("(");
     // remove $
-    std::string_view varName = input.substr(1, input.length());
-    auto paramStartPos = varName.find('(');
-    bool hasParams = paramStartPos != std::string_view::npos;
-    auto paramEndPos = varName.find(')');
+    std::string_view var_name = input.substr(1, input.length());
+    auto param_start_pos = var_name.find('(');
+    bool has_params = param_start_pos != std::string_view::npos;
+    auto param_end_pos = var_name.find(')');
 
-    if (paramEndPos == std::string_view::npos && hasParams)
+    if (param_end_pos == std::string_view::npos && has_params)
       return "";
     std::string_view prefix =
-        varName.substr(0, hasParams ? paramStartPos : varName.size());
+        var_name.substr(0, has_params ? param_start_pos : var_name.size());
 
-    std::string_view params = hasParams
-                                  ? varName.substr(paramStartPos + parenLength,
-                                                   paramEndPos - parenLength)
-                                  : "";
+    std::string_view params =
+        has_params ? var_name.substr(param_start_pos + paren_length,
+                                     param_end_pos - paren_length)
+                   : "";
 
-    return generateVariable(prefix, params);
+    return _generate_variable(prefix, params);
   }
 
 private:
-  static std::string generateVariable(const std::string_view variableType,
-                                      const std::string_view params) {
+  static std::string _generate_variable(const std::string_view variable_type,
+                                        const std::string_view params) {
     // TODO(stanley): may use a map
-    if (variableType == "uuid" || variableType == "random.uuid") {
-      return generateUUID();
-    } else if (variableType == "timestamp") {
-      return generateTimestamp();
-    } else if (variableType == "isoTimestamp") {
-      return generateISOTimestamp();
-    } else if (variableType == "randomInt" ||
-               variableType == "random.integer") {
-      return generateRandomInt(params);
-    } else if (variableType == "random.float") {
-      return generateRandomFloat(params);
-    } else if (variableType == "random.alphabetic") {
-      return generateRandomAlphabetic(params);
-    } else if (variableType == "random.alphanumeric") {
-      return generateRandomAlphanumeric(params);
-    } else if (variableType == "random.hexadecimal") {
-      return generateRandomHexadecimal(params);
-    } else if (variableType == "random.email") {
-      return generateRandomEmail();
+    if (variable_type == "uuid" || variable_type == "random.uuid") {
+      return _generate_uuid();
+    } else if (variable_type == "timestamp") {
+      return _generate_timestamp();
+    } else if (variable_type == "isoTimestamp") {
+      return _generate_iso_timestamp();
+    } else if (variable_type == "randomInt" ||
+               variable_type == "random.integer") {
+      return _generate_random_int(params);
+    } else if (variable_type == "random.float") {
+      return _generate_random_float(params);
+    } else if (variable_type == "random.alphabetic") {
+      return _generate_random_alphabetic(params);
+    } else if (variable_type == "random.alphanumeric") {
+      return _generate_random_alphanumeric(params);
+    } else if (variable_type == "random.hexadecimal") {
+      return _generate_random_hexadecimal(params);
+    } else if (variable_type == "random.email") {
+      return _generate_random_email();
     }
 
     return ""; // Unknown variable type
   }
 
-  static std::string generateUUID() {
+  static std::string _generate_uuid() {
     // Generate a UUID v4
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -131,7 +130,7 @@ private:
     return uuid;
   }
 
-  static std::string generateTimestamp() {
+  static std::string _generate_timestamp() {
     auto now = std::chrono::system_clock::now();
     auto timestamp =
         std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch())
@@ -139,7 +138,7 @@ private:
     return std::to_string(timestamp);
   }
 
-  static std::string generateISOTimestamp() {
+  static std::string _generate_iso_timestamp() {
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -153,7 +152,7 @@ private:
     return oss.str();
   }
 
-  static std::string generateRandomInt(const std::string_view params) {
+  static std::string _generate_random_int(const std::string_view params) {
     std::random_device rd;
     // TODO(stanley): maybe should be static and reuse
     std::mt19937 gen(rd());
@@ -170,7 +169,7 @@ private:
     return std::to_string(dis(gen));
   }
 
-  static std::string generateRandomFloat(const std::string_view params) {
+  static std::string _generate_random_float(const std::string_view params) {
     std::random_device rd;
     // TODO(stanley): maybe should be static and reuse
     std::mt19937 gen(rd());
@@ -188,7 +187,8 @@ private:
     return std::format("{:.6f}", dis(gen));
   }
 
-  static std::string generateRandomAlphabetic(const std::string_view params) {
+  static std::string
+  _generate_random_alphabetic(const std::string_view params) {
     int length = 10;
 
     if (!params.empty()) {
@@ -219,7 +219,8 @@ private:
     return result;
   }
 
-  static std::string generateRandomAlphanumeric(const std::string_view params) {
+  static std::string
+  _generate_random_alphanumeric(const std::string_view params) {
     int length = 10;
 
     if (!params.empty()) {
@@ -248,7 +249,8 @@ private:
     return result;
   }
 
-  static std::string generateRandomHexadecimal(const std::string_view params) {
+  static std::string
+  _generate_random_hexadecimal(const std::string_view params) {
     int length = 10;
 
     if (!params.empty()) {
@@ -276,10 +278,10 @@ private:
     return result;
   }
 
-  static std::string generateRandomEmail() {
-    std::string username = generateRandomAlphabetic("8");
-    std::string domain = generateRandomAlphabetic("6");
-    std::string tld = generateRandomAlphabetic("3");
+  static std::string _generate_random_email() {
+    std::string username = _generate_random_alphabetic("8");
+    std::string domain = _generate_random_alphabetic("6");
+    std::string tld = _generate_random_alphabetic("3");
 
     return std::format("{}@{}.{}", username, domain, tld);
   }
@@ -292,7 +294,7 @@ class CurlAdapter;
 
 // Plain Old Data
 struct HttpResponse {
-  long statusCode = 0;
+  long status_code = 0;
   std::optional<std::string> body;
   std::map<std::string, std::string> headers;
 };
@@ -310,19 +312,19 @@ public:
               const std::string &name = "")
       : method(method), url(url), name(name) {}
 
-  void addHeader(const std::string &key, const std::string &value) {
+  void add_header(const std::string &key, const std::string &value) {
     headers[key] = value;
   }
 
-  void setBody(const std::string &body) { this->body = body; }
+  void set_body(const std::string &body) { this->body = body; }
 };
 
 // Abstract adapter for request engines
 class RequestAdapter {
 public:
   virtual ~RequestAdapter() = default;
-  virtual std::expected<HttpResponse, error>
-  doRequest(const HttpRequest &request) = 0;
+  virtual std::expected<HttpResponse, AgatetepeError>
+  do_request(const HttpRequest &request) = 0;
 };
 
 // cURL adapter implementation
@@ -336,26 +338,26 @@ public:
 
   ~CurlAdapter() override { curl_global_cleanup(); }
 
-  std::expected<HttpResponse, error>
-  doRequest(const HttpRequest &request) override {
+  std::expected<HttpResponse, AgatetepeError>
+  do_request(const HttpRequest &request) override {
     CURL *curl = curl_easy_init();
     if (!curl) {
       return std::unexpected(
-          error{.code = agatetepe_error::curl_error,
-                .message = "Failed to initialise cURL easy handler."});
+          AgatetepeError{.code = e_agatetepe_error::curl_error,
+                         .message = "Failed to initialise cURL easy handler."});
     }
 
-    std::string responseBody;
-    std::map<std::string, std::string> responseHeaders;
-    struct curl_slist *headersList = nullptr;
+    std::string response_body;
+    std::map<std::string, std::string> response_headers;
+    struct curl_slist *headers_list = nullptr;
 
     // Set the URL
     curl_easy_setopt(curl, CURLOPT_URL, request.url.c_str());
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseBody);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, _curl_write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_body);
 
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &responseHeaders);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, _curl_header_callback);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response_headers);
 
     // --- Set HTTP Method and Body ---
     if (request.method == "POST") {
@@ -373,12 +375,12 @@ public:
 
     // --- Set Headers ---
     for (const auto &header : request.headers) {
-      std::string headerString = header.first + ": " + header.second;
-      headersList = curl_slist_append(headersList, headerString.c_str());
+      std::string header_string = header.first + ": " + header.second;
+      headers_list = curl_slist_append(headers_list, header_string.c_str());
     }
 
-    if (headersList) {
-      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headersList);
+    if (headers_list) {
+      curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers_list);
     }
 
     // Perform the request
@@ -388,11 +390,11 @@ public:
     if (res != CURLE_OK) {
       // Cleanup resources before returning error
       curl_easy_cleanup(curl);
-      curl_slist_free_all(headersList);
-      return std::unexpected(
-          error{.code = agatetepe_error::curl_error,
-                .message = std::format("curl_easy_perform() failed: {}",
-                                       curl_easy_strerror(res))});
+      curl_slist_free_all(headers_list);
+      return std::unexpected(AgatetepeError{
+          .code = e_agatetepe_error::curl_error,
+          .message = std::format("curl_easy_perform() failed: {}",
+                                 curl_easy_strerror(res))});
     }
 
     // Get the HTTP status code. This is now part of a successful transport.
@@ -401,45 +403,45 @@ public:
 
     // Cleanup resources
     curl_easy_cleanup(curl);
-    curl_slist_free_all(headersList);
+    curl_slist_free_all(headers_list);
 
     // Construct and return the successful response object.
     // The caller is now responsible for checking the status code.
     HttpResponse response;
-    response.statusCode = httpCode;
-    response.body = responseBody;
-    response.headers = std::move(responseHeaders);
+    response.status_code = httpCode;
+    response.body = response_body;
+    response.headers = std::move(response_headers);
 
     return response;
   }
 
 private:
-  static size_t writeCallback(void *contents, size_t size, size_t nmemb,
-                              std::string *userp) {
-    size_t totalSize = size * nmemb;
+  static size_t _curl_write_callback(void *contents, size_t size, size_t nmemb,
+                                     std::string *userp) {
+    size_t total_size = size * nmemb;
     if (userp) {
-      userp->append((char *)contents, totalSize);
+      userp->append((char *)contents, total_size);
     }
-    return totalSize;
+    return total_size;
   }
 
-  static size_t headerCallback(char *buffer, size_t size, size_t nitems,
-                               void *userdata) {
+  static size_t _curl_header_callback(char *buffer, size_t size, size_t nitems,
+                                      void *userdata) {
     auto *headers = static_cast<std::map<std::string, std::string> *>(userdata);
-    size_t totalSize = size * nitems;
+    size_t total_size = size * nitems;
 
-    std::string headerLine(buffer, totalSize);
+    std::string header_line(buffer, total_size);
 
-    headerLine.erase(headerLine.find_last_not_of("\r\n") + 1);
+    header_line.erase(header_line.find_last_not_of("\r\n") + 1);
 
     // Ignore empty lines and the HTTP status line (e.g., "HTTP/1.1 200 OK")
-    if (headerLine.empty() || headerLine.find(':') == std::string::npos) {
-      return totalSize;
+    if (header_line.empty() || header_line.find(':') == std::string::npos) {
+      return total_size;
     }
 
-    size_t colonPosition = headerLine.find(':');
-    std::string key = headerLine.substr(0, colonPosition);
-    std::string value = headerLine.substr(colonPosition + 1);
+    size_t colon_position = header_line.find(':');
+    std::string key = header_line.substr(0, colon_position);
+    std::string value = header_line.substr(colon_position + 1);
 
     // Trim
     key.erase(0, key.find_first_not_of(' '));
@@ -451,20 +453,15 @@ private:
 
     (*headers)[key] = value;
 
-    return totalSize;
+    return total_size;
   }
 };
 
 // Terminal menu for selecting requests
 class RequestMenu {
-private:
-  std::vector<std::shared_ptr<HttpRequest>> requests;
-  int selected = 0;
-  bool showDetails = false;
-
 public:
-  void addRequest(std::shared_ptr<HttpRequest> request) {
-    requests.push_back(request);
+  void add_request(std::shared_ptr<HttpRequest> request) {
+    _requests.push_back(request);
   }
 
   void display() {
@@ -473,14 +470,14 @@ public:
     std::println("HTTP Request Selector");
     std::println("=====================\n");
 
-    if (requests.empty()) {
+    if (_requests.empty()) {
       std::println("No requests available.");
       return;
     }
 
-    if (showDetails && selected >= 0 &&
-        selected < static_cast<int>(requests.size())) {
-      auto request = requests[selected];
+    if (_show_details && _selected >= 0 &&
+        _selected < static_cast<int>(_requests.size())) {
+      auto request = _requests[_selected];
       std::println("Name: {}", request->name);
       std::println("Method: {}", request->method);
       std::println("URL: {}", request->url);
@@ -499,18 +496,18 @@ public:
       std::println("\nPress 'd' to toggle details, arrow keys to navigate, "
                    "Enter to select, q to quit.");
     } else {
-      for (int i = 0; i < static_cast<int>(requests.size()); i++) {
-        if (i == selected) {
+      for (int i = 0; i < static_cast<int>(_requests.size()); i++) {
+        if (i == _selected) {
           std::print("> ");
         } else {
           std::print("  ");
         }
 
-        if (!requests[i]->name.empty()) {
-          std::println("# {}", requests[i]->name);
+        if (!_requests[i]->name.empty()) {
+          std::println("# {}", _requests[i]->name);
           std::print("    ");
         }
-        std::println("{} {}", requests[i]->method, requests[i]->url);
+        std::println("{} {}", _requests[i]->method, _requests[i]->url);
       }
 
       std::println("\nPress 'd' to toggle details, arrow keys to navigate, "
@@ -518,33 +515,38 @@ public:
     }
   }
 
-  void moveUp() {
-    if (selected > 0) {
-      selected--;
+  void move_up() {
+    if (_selected > 0) {
+      _selected--;
     }
   }
 
-  void moveDown() {
-    if (selected < static_cast<int>(requests.size()) - 1) {
-      selected++;
+  void move_down() {
+    if (_selected < static_cast<int>(_requests.size()) - 1) {
+      _selected++;
     }
   }
 
-  void toggleDetails() { showDetails = !showDetails; }
+  void toggle_details() { _show_details = !_show_details; }
 
-  std::shared_ptr<HttpRequest> getSelected() {
-    if (selected >= 0 && selected < static_cast<int>(requests.size())) {
-      return requests[selected];
+  std::shared_ptr<HttpRequest> get_selected() {
+    if (_selected >= 0 && _selected < static_cast<int>(_requests.size())) {
+      return _requests[_selected];
     }
     return nullptr;
   }
 
   void reset() {
-    selected = 0;
-    showDetails = false;
+    _selected = 0;
+    _show_details = false;
   }
 
-  size_t size() const { return requests.size(); }
+  size_t size() const { return _requests.size(); }
+
+private:
+  std::vector<std::shared_ptr<HttpRequest>> _requests;
+  int _selected = 0;
+  bool _show_details = false;
 };
 
 template <typename R>
@@ -556,21 +558,21 @@ concept ConvertibleToStringViewRange =
 class HttpRequestParser {
 public:
   static std::vector<std::shared_ptr<HttpRequest>>
-  parseContents(ConvertibleToStringViewRange auto &&range) {
+  parse_contents(ConvertibleToStringViewRange auto &&range) {
     std::vector<std::shared_ptr<HttpRequest>> requests;
 
     // Clear variables for a fresh parse
-    variables.clear();
+    _variables.clear();
 
-    std::shared_ptr<HttpRequest> currentRequest = nullptr;
-    bool inHeaders = false;
-    bool inBody = false;
+    std::shared_ptr<HttpRequest> current_request = nullptr;
+    bool in_headers = false;
+    bool in_body = false;
     std::string name;
     std::string body;
 
     for (std::string_view line : range) {
       if (line.starts_with("# @name")) {
-        constexpr auto nameSize = stringLength("# @name");
+        constexpr auto nameSize = string_length("# @name");
         name = std::string_view(line).substr(nameSize + 1);
         continue;
       }
@@ -582,15 +584,15 @@ public:
 
       // Parse variable declarations
       if (line.find("@") == 0) {
-        parseVariable(line);
+        _parse_variable(line);
         continue;
       }
 
       // Skip empty lines
       if (line.empty()) {
-        if (currentRequest && inHeaders) {
-          inHeaders = false;
-          inBody = true;
+        if (current_request && in_headers) {
+          in_headers = false;
+          in_body = true;
           body = "";
           name = "";
         }
@@ -603,65 +605,66 @@ public:
           line.find("DELETE ") == 0) {
 
         // Save previous request if exists
-        if (currentRequest) {
-          if (inBody && !body.empty()) {
-            currentRequest->setBody(body);
+        if (current_request) {
+          if (in_body && !body.empty()) {
+            current_request->set_body(body);
           }
-          requests.push_back(currentRequest);
+          requests.push_back(current_request);
         }
 
         // Parse method and URL, substituting variables
-        std::string processedLine = substituteVariables(line);
-        size_t spacePos = processedLine.find(' ');
-        std::string method = processedLine.substr(0, spacePos);
-        std::string url = processedLine.substr(spacePos + 1);
+        std::string processed_line = _substitue_variables(line);
+        size_t space_pos = processed_line.find(' ');
+        std::string method = processed_line.substr(0, space_pos);
+        std::string url = processed_line.substr(space_pos + 1);
 
         // Create new request
-        currentRequest = std::make_shared<HttpRequest>(method, url, name);
-        inHeaders = true;
-        inBody = false;
+        current_request = std::make_shared<HttpRequest>(method, url, name);
+        in_headers = true;
+        in_body = false;
         body = "";
         name = "";
       }
       // Parse headers
-      else if (inHeaders && currentRequest) {
-        size_t colonPos = line.find(':');
-        if (colonPos != std::string::npos) {
-          std::string_view key = line.substr(0, colonPos);
-          std::string_view value = line.substr(colonPos + 1);
+      else if (in_headers && current_request) {
+        size_t colon_pos = line.find(':');
+        if (colon_pos != std::string::npos) {
+          std::string_view key = line.substr(0, colon_pos);
+          std::string_view value = line.substr(colon_pos + 1);
 
-          std::string_view trimmedKey = trimWhitespace(key);
-          std::string_view trimmedValue = trimWhitespace(value);
+          std::string_view trimmed_key = _trim_whitespace(key);
+          std::string_view trimmed_value = _trim_whitespace(value);
           // Substitute variables in header values
-          std::string transformedValue = substituteVariables(trimmedValue);
+          std::string transformed_value = _substitue_variables(trimmed_value);
 
-          currentRequest->addHeader(std::string(trimmedKey), transformedValue);
+          current_request->add_header(std::string(trimmed_key),
+                                      transformed_value);
         }
       }
       // Parse body
-      else if (inBody && currentRequest) {
+      else if (in_body && current_request) {
         if (!body.empty()) {
           body += "\n";
         }
-        body += substituteVariables(line);
+        body += _substitue_variables(line);
       }
     }
 
     // Add the last request if exists
-    if (currentRequest) {
-      if (inBody && !body.empty()) {
+    if (current_request) {
+      if (in_body && !body.empty()) {
         // Substitute variables in body
-        body = substituteVariables(body);
-        currentRequest->setBody(body);
+        body = _substitue_variables(body);
+        current_request->set_body(body);
       }
-      requests.push_back(currentRequest);
+      requests.push_back(current_request);
     }
 
     return requests;
   }
 
   static std::vector<std::shared_ptr<HttpRequest>>
-  parseFile(const std::string_view filename) {
+  parse_file(const std::string_view filename) {
     auto reader = create_mmap_reader((std::string(filename)));
 
     if (!reader->is_open()) {
@@ -669,20 +672,20 @@ public:
       return std::vector<std::shared_ptr<HttpRequest>>{};
     }
 
-    return parseContents(*reader);
+    return parse_contents(*reader);
   }
 
   static std::vector<std::shared_ptr<HttpRequest>>
-  parseString(const std::string_view string_content) {
-    return parseContents(
+  parse_string(const std::string_view string_content) {
+    return parse_contents(
         string_content | std::views::split('\n') |
         std::views::transform([](auto r) { return std::string_view(r); }));
   }
 
 private:
-  static std::map<std::string, std::string> variables;
+  static std::map<std::string, std::string> _variables;
 
-  static std::string_view trimWhitespace(const std::string_view string) {
+  static std::string_view _trim_whitespace(const std::string_view string) {
     size_t start = string.find_first_not_of(" \t");
     if (start == std::string_view::npos) {
       return std::string_view(); // Empty string
@@ -693,31 +696,32 @@ private:
   }
 
   // Parse a variable declaration line
-  static void parseVariable(const std::string_view line) {
+  static void _parse_variable(const std::string_view line) {
     // Remove leading @
-    std::string_view varLine = line.substr(1);
+    std::string_view var_line = line.substr(1);
 
     // Find the equal sign
-    size_t equalPos = varLine.find('=');
-    if (equalPos == std::string::npos) {
+    size_t equal_pos = var_line.find('=');
+    if (equal_pos == std::string::npos) {
       return; // Invalid variable declaration
     }
 
     // Extract variable name and value
-    std::string_view varName = trimWhitespace(varLine.substr(0, equalPos));
-    std::string_view varValue = trimWhitespace(varLine.substr(equalPos + 1));
+    std::string_view var_name = _trim_whitespace(var_line.substr(0, equal_pos));
+    std::string_view var_value =
+        _trim_whitespace(var_line.substr(equal_pos + 1));
 
     // Handle quoted strings
-    if (varValue.front() == '"' && varValue.back() == '"') {
-      varValue = varValue.substr(1, varValue.length() - 2);
+    if (var_value.front() == '"' && var_value.back() == '"') {
+      var_value = var_value.substr(1, var_value.length() - 2);
     }
 
     // Store the variable
-    variables[std::string(varName)] = std::string(varValue);
+    _variables[std::string(var_name)] = std::string(var_value);
   }
 
   // Substitute variables in a string without using regex
-  static std::string substituteVariables(const std::string_view input) {
+  static std::string _substitue_variables(const std::string_view input) {
     std::string result = std::string(input);
     size_t pos = 0;
 
@@ -735,13 +739,13 @@ private:
       }
 
       // Extract variable name
-      std::string varName = result.substr(start + 2, end - start - 2);
+      std::string var_name = result.substr(start + 2, end - start - 2);
 
       // Find the replacement value
-      std::string replacement = varName.starts_with("$")
-                                    ? DynamicVariableResolver::resolve(varName)
-                                : variables.count(varName) ? variables[varName]
-                                                           : "";
+      std::string replacement =
+          var_name.starts_with("$") ? DynamicVariableResolver::resolve(var_name)
+          : _variables.count(var_name) ? _variables[var_name]
+                                       : "";
 
       // Replace the variable with its value
       result.replace(start, end - start + 2, replacement);
@@ -755,29 +759,29 @@ private:
 };
 
 // Initialize the static member
-std::map<std::string, std::string> HttpRequestParser::variables;
+std::map<std::string, std::string> HttpRequestParser::_variables;
 
 struct LoadRequestOptions {
-  bool shouldEval = false;
-  bool shouldFeedFromStdin = false;
-  bool showHelp = false;
-  std::string evalString;
-  std::string requestFile;
+  bool should_eval = false;
+  bool should_feed_from_stdin = false;
+  bool show_help = false;
+  std::string eval_string;
+  std::string request_file;
 };
 
 // Main application
 class HttpRequestApp {
 public:
-  HttpRequestApp() : adapter(std::make_unique<CurlAdapter>()) {}
+  HttpRequestApp() : _adapter(std::make_unique<CurlAdapter>()) {}
 
-  bool loadRequests(const LoadRequestOptions &options) {
+  bool load_requests(const LoadRequestOptions &options) {
 
     auto requests =
-        options.shouldFeedFromStdin
-            ? HttpRequestParser::parseString(collectStreamLines(std::cin))
-        : options.shouldEval
-            ? HttpRequestParser::parseString(options.evalString)
-            : HttpRequestParser::parseFile(options.requestFile);
+        options.should_feed_from_stdin
+            ? HttpRequestParser::parse_string(_collect_stream_lines(std::cin))
+        : options.should_eval
+            ? HttpRequestParser::parse_string(options.eval_string)
+            : HttpRequestParser::parse_file(options.request_file);
 
     if (requests.empty()) {
       std::println(stderr, "No valid requests found.");
@@ -785,14 +789,14 @@ public:
     }
 
     for (const auto &request : requests) {
-      menu.addRequest(request);
+      _menu.add_request(request);
     }
 
     return true;
   }
 
   void run() {
-    if (menu.size() == 0) {
+    if (_menu.size() == 0) {
       std::println("No requests to display. Exiting.");
       return;
     }
@@ -800,21 +804,21 @@ public:
     auto input = create_terminal_input();
 
     while (true) {
-      menu.display();
+      _menu.display();
 
-      int key = input->getKey();
+      int key = input->get_key();
 
       // Handle special keys
       if (key == 1) { // Up arrow
-        menu.moveUp();
+        _menu.move_up();
       } else if (key == 2) { // Down arrow
-        menu.moveDown();
+        _menu.move_down();
       } else if (key == 'q' || key == 'Q') {
         break;
       } else if (key == 'd' || key == 'D') {
-        menu.toggleDetails();
+        _menu.toggle_details();
       } else if (key == '\n') { // Enter key
-        auto request = menu.getSelected();
+        auto request = _menu.get_selected();
         if (request) {
           std::println("\nExecuting request...");
           std::println("Method: {}", request->method);
@@ -833,7 +837,7 @@ public:
 
           std::println("\nResponse:");
 
-          if (const auto response = adapter->doRequest(*request);
+          if (const auto response = _adapter->do_request(*request);
               response.has_value()) {
             std::println("Headers:");
 
@@ -841,7 +845,7 @@ public:
               std::println("  {}: {}", header.first, header.second);
             }
 
-            std::println("Status: {}", response->statusCode);
+            std::println("Status: {}", response->status_code);
             std::println("Body:");
             std::println("{}\n", response->body.value_or("NOTHING"));
           } else {
@@ -850,7 +854,7 @@ public:
           }
 
           std::print("Press any key to continue...");
-          input->getKey();
+          input->get_key();
         }
       }
     }
@@ -860,10 +864,10 @@ public:
   }
 
 private:
-  RequestMenu menu;
-  std::unique_ptr<RequestAdapter> adapter;
+  RequestMenu _menu;
+  std::unique_ptr<RequestAdapter> _adapter;
 
-  static std::string collectStreamLines(std::istream &in) {
+  static std::string _collect_stream_lines(std::istream &in) {
     std::string ret;
     ret.reserve(64 * 1024); // reserve 64 KB to reduce early reallocations
 
@@ -876,10 +880,10 @@ private:
   }
 };
 
-void print_usage(const std::string_view programName) {
-  std::println("Usage: {} [OPTIONS] <http_request_file>", programName);
-  std::println("       {} --eval <string> [OPTIONS]", programName);
-  std::println("       {} --stdin [OPTIONS]\n", programName);
+void print_usage(const std::string_view program_name) {
+  std::println("Usage: {} [OPTIONS] <http_request_file>", program_name);
+  std::println("       {} --eval <string> [OPTIONS]", program_name);
+  std::println("       {} --stdin [OPTIONS]\n", program_name);
   std::println("A simple console application to load and run HTTP requests.\n");
   std::println("Input Sources (one must be provided):");
   std::println(
@@ -893,17 +897,17 @@ void print_usage(const std::string_view programName) {
       "  -h, --help           Displays this help message and exits.\n");
   std::println("Examples:");
   std::println("  # Run a request from a file");
-  std::println("  {} request.txt\n", programName);
+  std::println("  {} request.txt\n", program_name);
   std::println("  # Evaluate a string directly");
-  std::println("  {} -e \"GET /api/users\"\n", programName);
+  std::println("  {} -e \"GET /api/users\"\n", program_name);
   std::println("  # Pipe a request from another command");
-  std::println("  cat request.txt | {} --stdin\n", programName);
+  std::println("  cat request.txt | {} --stdin\n", program_name);
 }
 
 // using ParseOptionsResult = std::expected<LoadRequestOptions, std::string>;
-using ParseOptionsResult = std::expected<LoadRequestOptions, error>;
+using ParseOptionsResult = std::expected<LoadRequestOptions, AgatetepeError>;
 
-ParseOptionsResult parseOptions(int argc, char *argv[]) {
+ParseOptionsResult parse_options(int argc, char *argv[]) {
   LoadRequestOptions options;
   std::vector<std::string_view> args(argv, argv + argc);
 
@@ -911,36 +915,36 @@ ParseOptionsResult parseOptions(int argc, char *argv[]) {
     const std::string_view arg = *it;
 
     if (arg == "-h" || arg == "--help") {
-      options.showHelp = true;
+      options.show_help = true;
       return options;
     }
 
     if (arg == "--stdin") {
-      options.shouldFeedFromStdin = true;
+      options.should_feed_from_stdin = true;
       continue;
     }
 
     if (arg == "-e" || arg == "--eval") {
       if (it + 1 == args.end()) {
         return std::unexpected(
-            error{.code = agatetepe_error::parse_error,
-                  .message = "Error: The " + std::string(arg) +
-                             " option requires a string argument."});
+            AgatetepeError{.code = e_agatetepe_error::parse_error,
+                           .message = "Error: The " + std::string(arg) +
+                                      " option requires a string argument."});
       }
-      options.shouldEval = true;
-      options.evalString = *(++it);
+      options.should_eval = true;
+      options.eval_string = *(++it);
       continue;
     }
 
     // If the argument doesn't start with '-', it's the positional request file
     if (!arg.starts_with('-')) {
-      if (!options.requestFile.empty()) {
-        return std::unexpected(
-            error{.code = agatetepe_error::parse_error,
-                  .message = "Error: Multiple request files specified. Only "
-                             "one is allowed."});
+      if (!options.request_file.empty()) {
+        return std::unexpected(AgatetepeError{
+            .code = e_agatetepe_error::parse_error,
+            .message = "Error: Multiple request files specified. Only "
+                       "one is allowed."});
       }
-      options.requestFile = arg;
+      options.request_file = arg;
     }
   }
 
@@ -949,26 +953,26 @@ ParseOptionsResult parseOptions(int argc, char *argv[]) {
 
 // Main function
 int main(int argc, char *argv[]) {
-  auto parseResult = parseOptions(argc, argv);
+  auto parse_result = parse_options(argc, argv);
 
-  if (!parseResult) {
-    std::println(stderr, "{}", parseResult.error().message);
+  if (!parse_result) {
+    std::println(stderr, "{}", parse_result.error().message);
     return 1;
   }
 
-  LoadRequestOptions options = std::move(parseResult.value());
+  LoadRequestOptions options = std::move(parse_result.value());
 
-  if (options.showHelp) {
+  if (options.show_help) {
     print_usage(argv[0]);
     return 0;
   }
 
   short input_sources_count = 0;
-  if (!options.requestFile.empty())
+  if (!options.request_file.empty())
     input_sources_count++;
-  if (options.shouldEval)
+  if (options.should_eval)
     input_sources_count++;
-  if (options.shouldFeedFromStdin)
+  if (options.should_feed_from_stdin)
     input_sources_count++;
 
   if (input_sources_count == 0) {
@@ -985,7 +989,7 @@ int main(int argc, char *argv[]) {
   }
 
   HttpRequestApp app;
-  if (!app.loadRequests(options)) {
+  if (!app.load_requests(options)) {
     return 1;
   }
 

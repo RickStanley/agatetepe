@@ -12,8 +12,8 @@ class MmapReaderUnix : public MmapReader {
 public:
   // TODO(stanley): Maybe remove print from the constructor to prevent duplication
   explicit MmapReaderUnix(const std::string &filename) {
-    fd = open(filename.c_str(), O_RDONLY);
-    if (fd == -1) {
+    _fd = open(filename.c_str(), O_RDONLY);
+    if (_fd == -1) {
       std::println(stderr, "Failed to open file ({}): {}", filename,
                    strerror(errno));
       // throw std::runtime_error("Failed to open file: " + filename);
@@ -22,21 +22,21 @@ public:
 
     struct stat sb;
 
-    if (fstat(fd, &sb) == -1) {
-      close(fd);
+    if (fstat(_fd, &sb) == -1) {
+      close(_fd);
       // throw std::runtime_error("Failed to ge file size for: " + filename);
       std::println(stderr, "Failed to ge file size for ({}): ", filename,
                    strerror(errno));
       return;
     }
 
-    file_size = sb.st_size;
+    _file_size = sb.st_size;
 
-    if (file_size > 0) {
-      mapped_data = static_cast<char *>(
-          mmap(nullptr, file_size, PROT_READ, MAP_SHARED, fd, 0));
-      if (mapped_data == MAP_FAILED) {
-        close(fd);
+    if (_file_size > 0) {
+      _mapped_data = static_cast<char *>(
+          mmap(nullptr, _file_size, PROT_READ, MAP_SHARED, _fd, 0));
+      if (_mapped_data == MAP_FAILED) {
+        close(_fd);
         // throw std::runtime_error("Failed to mmap file: " + filename);
         std::println(stderr, "Failed to mmap file ({}): {}", filename,
                      strerror(errno));
@@ -44,60 +44,60 @@ public:
       }
     }
 
-    m_is_open = true;
+    _is_open = true;
   }
 
   ~MmapReaderUnix() override {
-    if (mapped_data != nullptr && mapped_data != MAP_FAILED) {
-      munmap(mapped_data, file_size);
+    if (_mapped_data != nullptr && _mapped_data != MAP_FAILED) {
+      munmap(_mapped_data, _file_size);
     }
 
-    if (fd != 1) {
-      close(fd);
+    if (_fd != 1) {
+      close(_fd);
     }
 
-    m_is_open = false;
+    _is_open = false;
   }
 
   // Rule of Five
   MmapReaderUnix(const MmapReaderUnix &) = delete;
   MmapReaderUnix &operator=(const MmapReaderUnix &) = delete;
   MmapReaderUnix(MmapReaderUnix &&other) noexcept
-      : fd(other.fd), mapped_data(other.mapped_data),
-        file_size(other.file_size) {
-    other.fd = -1;
-    other.mapped_data = nullptr;
-    other.file_size = 0;
+      : _fd(other._fd), _mapped_data(other._mapped_data),
+        _file_size(other._file_size) {
+    other._fd = -1;
+    other._mapped_data = nullptr;
+    other._file_size = 0;
   }
   MmapReaderUnix &operator=(MmapReaderUnix &&other) noexcept {
     if (this != &other) {
-      if (mapped_data != nullptr && mapped_data != MAP_FAILED)
-        munmap(mapped_data, file_size);
+      if (_mapped_data != nullptr && _mapped_data != MAP_FAILED)
+        munmap(_mapped_data, _file_size);
 
-      if (fd != -1)
-        close(fd);
+      if (_fd != -1)
+        close(_fd);
 
-      fd = other.fd;
-      mapped_data = other.mapped_data;
-      file_size = other.file_size;
+      _fd = other._fd;
+      _mapped_data = other._mapped_data;
+      _file_size = other._file_size;
 
-      other.fd = -1;
-      other.mapped_data = nullptr;
-      other.file_size = 0;
+      other._fd = -1;
+      other._mapped_data = nullptr;
+      other._file_size = 0;
     }
 
     return *this;
   }
 
-  const char *get_data() const override { return mapped_data; }
-  size_t get_size() const override { return file_size; }
-  bool is_open() const override { return m_is_open; };
+  const char *get_data() const override { return _mapped_data; }
+  size_t get_size() const override { return _file_size; }
+  bool is_open() const override { return _is_open; };
 
 private:
-  int fd = -1;
-  char *mapped_data = nullptr;
-  size_t file_size = 0;
-  bool m_is_open = false;
+  int _fd = -1;
+  char *_mapped_data = nullptr;
+  size_t _file_size = 0;
+  bool _is_open = false;
 };
 
 std::unique_ptr<MmapReader> create_mmap_reader(const std::string &filename) {
