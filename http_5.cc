@@ -11,6 +11,8 @@
 #include <ctime>
 #include <curl/curl.h>
 #include <curl/easy.h>
+#include <expected>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -27,8 +29,14 @@
 #include <termios.h>
 #include <type_traits>
 #include <unistd.h>
-#include <variant>
 #include <vector>
+
+enum class agatetepe_error { unknown, parse_error, curl_error };
+
+struct error {
+  agatetepe_error code = agatetepe_error::unknown;
+  std::string message;
+};
 
 static constexpr size_t stringLength(const char *str) {
   size_t count = 0;
@@ -313,9 +321,7 @@ public:
 class RequestAdapter {
 public:
   virtual ~RequestAdapter() = default;
-  // TODO(stanley): std::expected may be more appropriate (aligns with rust's
-  // result)
-  virtual std::variant<HttpResponse, std::string>
+  virtual std::expected<HttpResponse, error>
   doRequest(const HttpRequest &request) = 0;
 };
 
@@ -330,11 +336,13 @@ public:
 
   ~CurlAdapter() override { curl_global_cleanup(); }
 
-  std::variant<HttpResponse, std::string>
+  std::expected<HttpResponse, error>
   doRequest(const HttpRequest &request) override {
     CURL *curl = curl_easy_init();
     if (!curl) {
-      return "Failed to initialise CURL easy handle";
+      return std::unexpected(
+          error{.code = agatetepe_error::curl_error,
+                .message = "Failed to initialise cURL easy handler."});
     }
 
     std::string responseBody;
@@ -381,8 +389,10 @@ public:
       // Cleanup resources before returning error
       curl_easy_cleanup(curl);
       curl_slist_free_all(headersList);
-      return "curl_easy_perform() failed: " +
-             std::string(curl_easy_strerror(res));
+      return std::unexpected(
+          error{.code = agatetepe_error::curl_error,
+                .message = std::format("curl_easy_perform() failed: {}",
+                                       curl_easy_strerror(res))});
     }
 
     // Get the HTTP status code. This is now part of a successful transport.
@@ -821,39 +831,21 @@ public:
 
           std::println("\nResponse:");
 
-          std::variant<HttpResponse, std::string> maybeResponse =
-              adapter->doRequest(*request);
+          if (const auto response = adapter->doRequest(*request);
+              response.has_value()) {
+            std::println("Headers:");
 
-          // Taken from
-          // https://en.cppreference.com/w/cpp/utility/variant/visit2.html#Example
-          std::visit(
-              [](auto &&arg) {
-                using T = std::decay_t<decltype(arg)>;
+            for (const auto &header : response->headers) {
+              std::println("  {}: {}", header.first, header.second);
+            }
 
-                // Failure
-                if constexpr (std::is_same_v<T, std::string>) {
-
-                  std::println(stderr, "Transport error: {}", arg);
-
-                  // Success
-                } else if constexpr (std::is_same_v<T, HttpResponse>) {
-
-                  const HttpResponse &response = arg;
-                  std::println("Headers:");
-
-                  for (const auto &header : response.headers) {
-                    std::println("  {}: {}", header.first, header.second);
-                  }
-
-                  std::println("Status: {}", response.statusCode);
-                  std::println("Body:");
-                  std::println("{}\n", response.body.value_or("NOTHING"));
-
-                  // Exhausted
-                } else
-                  static_assert(false, "non-exhaustive visitor!");
-              },
-              maybeResponse);
+            std::println("Status: {}", response->statusCode);
+            std::println("Body:");
+            std::println("{}\n", response->body.value_or("NOTHING"));
+          } else {
+            std::println(stderr, "Transport error: {}",
+                         response.error().message);
+          }
 
           std::print("Press any key to continue...");
           input->getKey();
