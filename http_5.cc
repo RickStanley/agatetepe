@@ -464,6 +464,8 @@ public:
     _requests.push_back(request);
   }
 
+  void jump_to(int index) { _selected = index; }
+
   void display() {
     std::print("\033[2J\033[H");
 
@@ -765,6 +767,7 @@ struct LoadRequestOptions {
   bool should_eval = false;
   bool should_feed_from_stdin = false;
   bool show_help = false;
+  std::optional<short> pick_index;
   std::string eval_string;
   std::string request_file;
 };
@@ -863,6 +866,39 @@ public:
     std::print("\033[2J\033[H");
   }
 
+  // TODO(stanley): maybe merge to a common/shared function with `run`
+  int request_pick_at(ushort index) {
+    if (index > _menu.size()) {
+      std::println(stderr,
+                   "Error: out of range of requests available, you requested "
+                   "{} but there are {} requests.",
+                   index, _menu.size());
+      return 1;
+    }
+
+    _menu.jump_to(index - 1);
+    auto request = _menu.get_selected();
+
+    if (const auto response = _adapter->do_request(*request);
+        response.has_value()) {
+      std::println("Headers:");
+
+      for (const auto &header : response->headers) {
+        std::println("  {}: {}", header.first, header.second);
+      }
+
+      std::println("Status: {}", response->status_code);
+      std::println("Body:");
+      std::println("{}", response->body.value_or("NOTHING"));
+    } else {
+      std::println(stderr, "Transport error: {}", response.error().message);
+
+      return 1;
+    }
+
+    return 0;
+  }
+
 private:
   RequestMenu _menu;
   std::unique_ptr<RequestAdapter> _adapter;
@@ -893,6 +929,8 @@ void print_usage(const std::string_view program_name) {
   std::println(
       "  --stdin              Reads the HTTP request from standard input.\n");
   std::println("General Options:");
+  std::println("  -p, --pick-index     Picks a specific request at index if "
+               "possible.\n");
   std::println(
       "  -h, --help           Displays this help message and exits.\n");
   std::println("Examples:");
@@ -902,6 +940,9 @@ void print_usage(const std::string_view program_name) {
   std::println("  {} -e \"GET /api/users\"\n", program_name);
   std::println("  # Pipe a request from another command");
   std::println("  cat request.txt | {} --stdin\n", program_name);
+  std::println(
+      "  # Picks the request at index 1 (first request, top-down wise)");
+  std::println("  {} --pick-index 1 requests.http\n", program_name);
 }
 
 // using ParseOptionsResult = std::expected<LoadRequestOptions, std::string>;
@@ -921,6 +962,30 @@ ParseOptionsResult parse_options(int argc, char *argv[]) {
 
     if (arg == "--stdin") {
       options.should_feed_from_stdin = true;
+      continue;
+    }
+
+    if (arg == "-p" || arg == "--pick-index") {
+      if (it + 1 == args.end()) {
+      pick_option_failure:
+        return std::unexpected(AgatetepeError{
+            .code = e_agatetepe_error::parse_error,
+            .message =
+                "Error: The " + std::string(arg) +
+                " option requires a non-negative/non-zero number argument."});
+      }
+
+      std::stringstream convertor;
+      short number = 0;
+
+      convertor << *(++it);
+      convertor >> number;
+
+      if (convertor.fail() || number <= 0) {
+        goto pick_option_failure;
+      }
+
+      options.pick_index = number;
       continue;
     }
 
@@ -993,7 +1058,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  app.run();
+  if (options.pick_index.has_value()) {
+    return app.request_pick_at(options.pick_index.value());
+  } else {
+    app.run();
+  }
 
   return 0;
 }
