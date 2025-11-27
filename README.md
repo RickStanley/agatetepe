@@ -1,5 +1,7 @@
 # agatetepe
 
+Moved to: https://codeberg.org/RickStanley/agatetepe
+
 Make requests from .http files.
 
 ![A image depicting agatetepe usage within a terminal emulator, the user made a GET request and received a response as expected](./example.png)
